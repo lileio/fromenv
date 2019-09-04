@@ -9,46 +9,40 @@ import (
 	"github.com/lileio/pubsub"
 	"github.com/lileio/pubsub/google"
 	opentracing "github.com/opentracing/opentracing-go"
-	zipkin "github.com/openzipkin/zipkin-go-opentracing"
+	zipkinot "github.com/openzipkin-contrib/zipkin-go-opentracing"
+	zipkin "github.com/openzipkin/zipkin-go"
+	"github.com/openzipkin/zipkin-go/reporter"
+	zipkinHTTP "github.com/openzipkin/zipkin-go/reporter/http"
 	"github.com/sirupsen/logrus"
 )
 
 func Tracer(name string) opentracing.Tracer {
-	var collector zipkin.Collector
+	var rep reporter.Reporter
 	var err error
 
 	zipkinHost := os.Getenv("ZIPKIN_SERVICE_HOST")
-	if zipkinHost != "" {
-		addr := fmt.Sprintf("http://%s:%s/api/v1/spans",
-			os.Getenv("ZIPKIN_SERVICE_HOST"),
-			os.Getenv("ZIPKIN_SERVICE_PORT"))
-		collector, err = zipkin.NewHTTPCollector(addr)
-		if err != nil {
-			logrus.Fatalf("unable to create Zipkin HTTP collector: %+v", err)
-		}
-
+	zipkinPort := os.Getenv("ZIPKIN_SERVICE_PORT")
+	if zipkinHost != "" && zipkinPort != "" {
+		addr := fmt.Sprintf("http://%s:%s/api/v1/spans", zipkinHost, zipkinPort)
+		rep = zipkinHTTP.NewReporter(addr)
 		logrus.Infof("Using Zipkin HTTP tracer: %s", addr)
-	}
-
-	if collector == nil {
+	} else {
 		logrus.Infof("Using Zipkin Global tracer")
 		return opentracing.GlobalTracer()
 	}
 
-	// create recorder.
-	recorder := zipkin.NewRecorder(collector, false, "", name)
-
 	// create tracer.
-	tracer, err := zipkin.NewTracer(
-		recorder,
-		zipkin.TraceID128Bit(true),
+	nativeTracer, err := zipkin.NewTracer(
+		rep,
+		zipkin.WithTraceID128Bit(true),
 	)
 	if err != nil {
 		logrus.Fatalf("unable to create Zipkin tracer: %+v", err)
 	}
+	tracer := zipkinot.Wrap(nativeTracer)
 
 	// explicitly set our tracer to be the default tracer.
-	opentracing.InitGlobalTracer(tracer)
+	opentracing.SetGlobalTracer(tracer)
 
 	return tracer
 }
