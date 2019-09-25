@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lileio/pubsub"
-	"github.com/lileio/pubsub/providers/google"
+	"github.com/lileio/pubsub/v2"
+	"github.com/lileio/pubsub/v2/providers/google"
 	opentracing "github.com/opentracing/opentracing-go"
 	zipkin "github.com/openzipkin/zipkin-go-opentracing"
 	"github.com/sirupsen/logrus"
