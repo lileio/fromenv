@@ -3,52 +3,46 @@
 package fromenv
 
 import (
-	"fmt"
+	"log"
 	"os"
 
 	"github.com/lileio/pubsub/v2"
 	"github.com/lileio/pubsub/v2/providers/google"
 	opentracing "github.com/opentracing/opentracing-go"
-	zipkin "github.com/openzipkin/zipkin-go-opentracing"
+	zipkinot "github.com/openzipkin-contrib/zipkin-go-opentracing"
+	"github.com/openzipkin/zipkin-go"
+	zipkinhttp "github.com/openzipkin/zipkin-go/reporter/http"
 	"github.com/sirupsen/logrus"
 )
 
 func Tracer(name string) opentracing.Tracer {
-	var collector zipkin.Collector
-	var err error
-
-	zipkinHost := os.Getenv("ZIPKIN_SERVICE_HOST")
-	if zipkinHost != "" {
-		addr := fmt.Sprintf("http://%s:%s/api/v1/spans",
-			os.Getenv("ZIPKIN_SERVICE_HOST"),
-			os.Getenv("ZIPKIN_SERVICE_PORT"))
-		collector, err = zipkin.NewHTTPCollector(addr)
-		if err != nil {
-			logrus.Fatalf("unable to create Zipkin HTTP collector: %+v", err)
-		}
-
-		logrus.Infof("Using Zipkin HTTP tracer: %s", addr)
-	}
-
-	if collector == nil {
-		logrus.Infof("Using Zipkin Global tracer")
+	zipkinHost := os.Getenv("USE_ZIPKIN")
+	if zipkinHost == "" {
 		return opentracing.GlobalTracer()
 	}
 
-	// create recorder.
-	recorder := zipkin.NewRecorder(collector, false, "", name)
-
-	// create tracer.
-	tracer, err := zipkin.NewTracer(
-		recorder,
-		zipkin.TraceID128Bit(true),
-	)
-	if err != nil {
-		logrus.Fatalf("unable to create Zipkin tracer: %+v", err)
+	addr := "http://zipkin/api/v1/spans"
+	if os.Getenv("ZIPKIN_ADDR") != "" {
+		addr = os.Getenv("ZIPKIN_ADDR")
 	}
 
-	// explicitly set our tracer to be the default tracer.
-	opentracing.InitGlobalTracer(tracer)
+	// create our local service endpoint
+	endpoint, _ := zipkin.NewEndpoint(name, name)
+
+	logrus.Infof("Using Zipkin HTTP tracer: %s", addr)
+	reporter := zipkinhttp.NewReporter(addr)
+
+	// initialize our tracer
+	nativeTracer, err := zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(endpoint))
+	if err != nil {
+		log.Fatalf("unable to create tracer: %+v\n", err)
+	}
+
+	// use zipkin-go-opentracing to wrap our tracer
+	tracer := zipkinot.Wrap(nativeTracer)
+
+	// optionally set as Global OpenTracing tracer instance
+	opentracing.SetGlobalTracer(tracer)
 
 	return tracer
 }
