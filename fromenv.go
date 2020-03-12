@@ -11,9 +11,12 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	zipkinot "github.com/openzipkin-contrib/zipkin-go-opentracing"
 	"github.com/openzipkin/zipkin-go"
+	"github.com/openzipkin/zipkin-go/reporter"
 	zipkinhttp "github.com/openzipkin/zipkin-go/reporter/http"
 	"github.com/sirupsen/logrus"
 )
+
+var zipkinReporter reporter.Reporter
 
 func Tracer(name string) opentracing.Tracer {
 	zipkinHost := os.Getenv("USE_ZIPKIN")
@@ -30,10 +33,10 @@ func Tracer(name string) opentracing.Tracer {
 	endpoint, _ := zipkin.NewEndpoint(name, name)
 
 	logrus.Infof("Using Zipkin HTTP tracer: %s", addr)
-	reporter := zipkinhttp.NewReporter(addr)
+	zipkinReporter = zipkinhttp.NewReporter(addr)
 
 	// initialize our tracer
-	nativeTracer, err := zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(endpoint))
+	nativeTracer, err := zipkin.NewTracer(zipkinReporter, zipkin.WithLocalEndpoint(endpoint))
 	if err != nil {
 		log.Fatalf("unable to create tracer: %+v\n", err)
 	}
@@ -62,4 +65,12 @@ func PubSubProvider() pubsub.Provider {
 
 	logrus.Warn("Using noop pubsub provider")
 	return pubsub.NoopProvider{}
+}
+
+func Shutdown() error {
+	if zipkinReporter != nil {
+		return zipkinReporter.Close()
+	}
+
+	return nil
 }
