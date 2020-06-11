@@ -30,7 +30,7 @@ func Tracer(name string) opentracing.Tracer {
 	}
 
 	// create our local service endpoint
-	endpoint, _ := zipkin.NewEndpoint(name, name)
+	endpoint, _ := zipkin.NewEndpoint(name, addr)
 
 	logrus.Infof("Using Zipkin HTTP tracer: %s", addr)
 	zipkinReporter = zipkinhttp.NewReporter(addr)
