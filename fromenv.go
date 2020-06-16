@@ -18,7 +18,7 @@ import (
 
 var zipkinReporter reporter.Reporter
 
-func Tracer(name string) opentracing.Tracer {
+func Tracer(name string, opts ...zipkinhttp.ReporterOption) opentracing.Tracer {
 	zipkinHost := os.Getenv("USE_ZIPKIN")
 	if zipkinHost == "" {
 		return opentracing.GlobalTracer()
@@ -30,10 +30,10 @@ func Tracer(name string) opentracing.Tracer {
 	}
 
 	// create our local service endpoint
-	endpoint, _ := zipkin.NewEndpoint(name, addr)
+	endpoint, _ := zipkin.NewEndpoint(name, "localhost:0")
 
 	logrus.Infof("Using Zipkin HTTP tracer: %s", addr)
-	zipkinReporter = zipkinhttp.NewReporter(addr)
+	zipkinReporter = zipkinhttp.NewReporter(addr, opts...)
 
 	// initialize our tracer
 	nativeTracer, err := zipkin.NewTracer(zipkinReporter, zipkin.WithLocalEndpoint(endpoint))
